@@ -1,4 +1,3 @@
-# services/auth_service.py
 from sqlalchemy.orm import Session
 from models.user import User
 from schemas.user import UserCreate
@@ -8,7 +7,6 @@ from core.security import get_password_hash
 def create_user(db: Session, user: UserCreate):
 	role = 'user'
 
-	# Create user object
 	db_user = User(
 		username = user.username,
 		email = user.email,

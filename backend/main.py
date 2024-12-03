@@ -12,17 +12,16 @@ create_tables()
 
 app = FastAPI()
 
-# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth_router, prefix="/auth", tags=["authentication"])
+#routers
+app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(review_router, prefix="/reviews", tags=["reviews"])
 
 if __name__ == "__main__":
