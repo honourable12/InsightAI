@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth_router, prefix="/auth", tags=["authentication"])
+app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(review_router, prefix="/reviews", tags=["reviews"])
 
 if __name__ == "__main__":

@@ -1,121 +1,137 @@
 # routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import jwt
+from fastapi import APIRouter, Depends, HTTPException, Form, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from datetime import timedelta,datetime
-from typing import Annotated
+import secrets
+import bcrypt
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+from core.security import verify_password, hash_password, create_access_token, get_current_user
 
-from core.security import create_access_token, get_current_active_user
-from core.config import settings
-from services.auth_service import create_user, authenticate_user
-from schemas.user import User, UserCreate, Token
 from database import get_db
-from models.user import User as UserModel
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = settings.SECRET_KEY
-ALGORITHM = settings.ALGORITHM
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+from models.user import User
+from core.config import settings
 
 router = APIRouter()
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+# def hash_password(password: str) -> str:
+# 	salt = bcrypt.gensalt()
+# 	hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+# 	return hashed_password.decode('utf-8')
 
 
-@router.post("/register", response_model = User)
-def register_user(
-	user: UserCreate,
-	db: Annotated[Session, Depends(get_db)]
+# def verify_password(plain_password: str, hashed_password: str) -> bool:
+# 	return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+#
+# def create_access_token(data: dict):
+# 	to_encode = data.copy()
+# 	expire = datetime.utcnow() + timedelta(minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+# 	to_encode.update({"exp": expire})
+# 	encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm = settings.ALGORITHM)
+# 	return encoded_jwt
+
+
+# def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+# 	credentials_exception = HTTPException(
+# 		status_code = 401,
+# 		detail = "Could not validate credentials",
+# 		headers = {"WWW-Authenticate": "Bearer"},
+# 	)
+# 	try:
+# 		payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms = [settings.ALGORITHM])
+# 		username: str = payload.get("sub")
+# 		if username is None:
+# 			raise credentials_exception
+# 	except JWTError:
+# 		raise credentials_exception
+#
+# 	user = db.query(User).filter(User.username == username).first()
+# 	if user is None:
+# 		raise credentials_exception
+# 	return user
+
+
+@router.post("/register")
+def register(
+    username: str = Form(...),
+    password: str = Form(...),
+    email: str = Form(None),
+    full_name: str = Form(None),
+    role: str = Form("user"),  # Default role
+    db: Session = Depends(get_db)
 ):
-	# Validate username
-	if len(user.username) < 3:
-		raise HTTPException(
-			status_code = status.HTTP_400_BAD_REQUEST,
-			detail = "Username must be at least 3 characters long"
-		)
+    # Validate username
+    if len(username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username must be at least 3 characters long"
+        )
 
-	# Validate password
-	if len(user.password) < 8:
-		raise HTTPException(
-			status_code = status.HTTP_400_BAD_REQUEST,
-			detail = "Password must be at least 8 characters long"
-		)
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
 
-	# Check if username already exists
-	existing_user = db.query(UserModel).filter(UserModel.username == user.username).first()
-	if existing_user:
-		raise HTTPException(
-			status_code = status.HTTP_400_BAD_REQUEST,
-			detail = "Username already registered"
-		)
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
 
-	# Check if email already exists
-	existing_email = db.query(UserModel).filter(UserModel.email == user.email).first()
-	if existing_email:
-		raise HTTPException(
-			status_code = status.HTTP_400_BAD_REQUEST,
-			detail = "Email already registered"
-		)
+    if email and db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-	# Create and return the new user
-	return create_user(db = db, user = user)
+    hashed_password = hash_password(password)
+
+    new_user = User(
+        username=username,
+        email=email,
+        full_name=full_name,
+        hashed_password=hashed_password,
+        role=role,
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"message": "User registered successfully", "user_id": new_user.id}
 
 
-@router.post("/token", response_model = dict)
-def login(
-	form_data: OAuth2PasswordRequestForm = Depends(),
-	db: Session = Depends(get_db)
-):
-	# Fetch user from the database
+@router.post("/token")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+	# Find user by username
 	user = db.query(User).filter(User.username == form_data.username).first()
 
-	# Verify user and password
+	# Verify password
 	if not user or not verify_password(form_data.password, user.hashed_password):
-		raise HTTPException(
-			status_code = status.HTTP_401_UNAUTHORIZED,
-			detail = "Incorrect username or password",
-			headers = {"WWW-Authenticate": "Bearer"},
-		)
+		raise HTTPException(status_code = 400, detail = "Incorrect username or password")
 
-	# Generate access token
-	access_token = create_access_token(
-		data = {"sub": user.username, "role": user.role, "user_id": user.id}
-	)
+	# Create access token
+	access_token = create_access_token(data = {"sub": user.username})
 
+	return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/profile")
+def get_profile(current_user: User = Depends(get_current_user)):
 	return {
-		"access_token": access_token,
-		"token_type": "bearer"
+		"username": current_user.username,
+		"email": current_user.email,
+		"created_at": current_user.created_at
 	}
-
-
-@router.get("/users/me", response_model = User)
-def read_users_me(
-	current_user: Annotated[User, Depends(get_current_active_user)]
-):
-	return current_user
 
 
 @router.post("/change-password")
 def change_password(
-	current_password: str,
-	new_password: str,
-	current_user: Annotated[User, Depends(get_current_active_user)],
-	db: Annotated[Session, Depends(get_db)]
+	current_password: str = Form(...),
+	new_password: str = Form(...),
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db)
 ):
-	from core.security import verify_password, get_password_hash
-
 	# Verify current password
-	if not verify_password(current_password, current_user.hashed_password):
+	if not verify_password(current_password, current_user.password):
 		raise HTTPException(
 			status_code = status.HTTP_400_BAD_REQUEST,
 			detail = "Incorrect current password"
@@ -129,7 +145,7 @@ def change_password(
 		)
 
 	# Hash and update the password
-	current_user.hashed_password = get_password_hash(new_password)
+	current_user.password = hash_password(new_password)
 	db.commit()
 
 	return {"message": "Password successfully changed"}
@@ -137,8 +153,8 @@ def change_password(
 
 @router.post("/reset-password")
 def reset_password(
-	email: str,
-	db: Annotated[Session, Depends(get_db)]
+	email: str = Form(...),
+	db: Session = Depends(get_db)
 ):
 	# Find user by email
 	user = db.query(User).filter(User.email == email).first()
@@ -150,12 +166,10 @@ def reset_password(
 		)
 
 	# Generate a temporary password
-	import secrets
 	temp_password = secrets.token_urlsafe(12)
 
 	# Update user's password
-	from core.security import get_password_hash
-	user.hashed_password = get_password_hash(temp_password)
+	user.password = hash_password(temp_password)
 	db.commit()
 
 	# In a real-world scenario, you would send this temporary password via email
@@ -164,3 +178,13 @@ def reset_password(
 		"message": "Temporary password generated",
 		"temp_password": temp_password
 	}
+
+
+@router.delete("/delete-account")
+def delete_account(
+	current_user: User = Depends(get_current_user),
+	db: Session = Depends(get_db)
+):
+	db.delete(current_user)
+	db.commit()
+	return {"message": "Account deleted successfully"}
