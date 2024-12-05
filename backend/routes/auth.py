@@ -22,42 +22,42 @@ router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# def hash_password(password: str) -> str:
-# 	salt = bcrypt.gensalt()
-# 	hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
-# 	return hashed_password.decode('utf-8')
+def hash_password(password: str) -> str:
+	salt = bcrypt.gensalt()
+	hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+	return hashed_password.decode('utf-8')
 
 
-# def verify_password(plain_password: str, hashed_password: str) -> bool:
-# 	return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-
-#
-# def create_access_token(data: dict):
-# 	to_encode = data.copy()
-# 	expire = datetime.utcnow() + timedelta(minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-# 	to_encode.update({"exp": expire})
-# 	encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm = settings.ALGORITHM)
-# 	return encoded_jwt
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+	return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
-# def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-# 	credentials_exception = HTTPException(
-# 		status_code = 401,
-# 		detail = "Could not validate credentials",
-# 		headers = {"WWW-Authenticate": "Bearer"},
-# 	)
-# 	try:
-# 		payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms = [settings.ALGORITHM])
-# 		username: str = payload.get("sub")
-# 		if username is None:
-# 			raise credentials_exception
-# 	except JWTError:
-# 		raise credentials_exception
-#
-# 	user = db.query(User).filter(User.username == username).first()
-# 	if user is None:
-# 		raise credentials_exception
-# 	return user
+def create_access_token(data: dict):
+	to_encode = data.copy()
+	expire = datetime.utcnow() + timedelta(minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+	to_encode.update({"exp": expire})
+	encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm = settings.ALGORITHM)
+	return encoded_jwt
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+	credentials_exception = HTTPException(
+		status_code = 401,
+		detail = "Could not validate credentials",
+		headers = {"WWW-Authenticate": "Bearer"},
+	)
+	try:
+		payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms = [settings.ALGORITHM])
+		username: str = payload.get("sub")
+		if username is None:
+			raise credentials_exception
+	except JWTError:
+		raise credentials_exception
+
+	user = db.query(User).filter(User.username == username).first()
+	if user is None:
+		raise credentials_exception
+	return user
 
 
 @router.post("/register")
@@ -178,30 +178,26 @@ def reset_password(
     user.password = hash_password(temp_password)
     db.commit()
 
-    # Email configuration 
-    sender_email = os.getenv("GMAIL_EMAIL")  
-    app_password = os.getenv("GMAIL_APP_PASSWORD")  
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
+    # Postmark configuration
+    server_token = os.getenv("POSTMARK_SERVER_API_TOKEN")
+    sender_email = os.getenv("POSTMARK_SENDER_EMAIL")  # Your verified sender email
 
     # This sends the message to the user
     subject = "Password Reset Request"
     message = f"Hello {user.username},\n\nYour temporary password is: {temp_password}\nPlease use this password to log in and reset your password immediately."
 
-    # This part creates the email
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(message, "plain"))
+    # Create a Postmark client and send the email
+    from postmarker.core import PostmarkClient
+    client = PostmarkClient(server_token)
 
     try:
-        # Sending the mail using Gmail's SMTP 
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls() 
-            server.login(sender_email, app_password)  
-            server.sendmail(sender_email, email, msg.as_string()) 
-            print("Email sent successfully!")
+        client.emails.send(
+            From=sender_email,
+            To=email,
+            Subject=subject,
+            TextBody=message
+        )
+        print("Email sent successfully!")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
