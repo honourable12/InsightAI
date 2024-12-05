@@ -174,42 +174,38 @@ def reset_password(
     # Generate a temporary password
     temp_password = secrets.token_urlsafe(12)
 
-    # Update user's password
+    # Hash and update the user's password
     user.password = hash_password(temp_password)
     db.commit()
 
-	# Need to get a correct SMPT for the job
-	# Will fix email config later
-    # Send temporary password via email
+    # Email configuration 
+    sender_email = os.getenv("GMAIL_EMAIL")  
+    app_password = os.getenv("GMAIL_APP_PASSWORD")  
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+
+    # This sends the message to the user
+    subject = "Password Reset Request"
+    message = f"Hello {user.username},\n\nYour temporary password is: {temp_password}\nPlease use this password to log in and reset your password immediately."
+
+    # This part creates the email
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(message, "plain"))
+
     try:
-        # Elastic Email configuration
-        sender_email = ""  # Use your Elastic Email address
-        api_key = ""  # Your Elastic Email API key
-        smtp_server = "smtp.elasticemail.com"
-        smtp_port = 2525  # Use 587 for TLS
-        recipient_email = email
-
-        # Email content
-        subject = "Password Reset Request"
-        message = f"Hello {user.username},\n\nYour temporary password is: {temp_password}\nPlease use this password to log in and reset your password immediately."
-
-        # Create the email
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = recipient_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(message, "plain"))
-
-        # Connect to the SMTP server and send the email
+        # Sending the mail using Gmail's SMTP 
         with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # Upgrade the connection to secure TLS
-            server.login(sender_email, api_key)  # Log in with your Elastic Email API key
-            server.sendmail(sender_email, recipient_email, msg.as_string())  # Send the email
-
+            server.starttls() 
+            server.login(sender_email, app_password)  
+            server.sendmail(sender_email, email, msg.as_string()) 
+            print("Email sent successfully!")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email: {str(e)}"
+            detail=f"Failed to send email: {e}"
         )
 
     return {
