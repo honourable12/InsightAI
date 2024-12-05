@@ -7,11 +7,17 @@ import bcrypt
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from core.security import verify_password, hash_password, create_access_token, get_current_user
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+import os
 
 from database import get_db
 from models.user import User
 from core.config import settings
 
+load_dotenv()
 router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
@@ -153,32 +159,62 @@ def change_password(
 
 @router.post("/reset-password")
 def reset_password(
-	email: str = Form(...),
-	db: Session = Depends(get_db)
+    email: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-	# Find user by email
-	user = db.query(User).filter(User.email == email).first()
+    # Find user by email
+    user = db.query(User).filter(User.email == email).first()
 
-	if not user:
-		raise HTTPException(
-			status_code = status.HTTP_404_NOT_FOUND,
-			detail = "User not found"
-		)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
 
-	# Generate a temporary password
-	temp_password = secrets.token_urlsafe(12)
+    # Generate a temporary password
+    temp_password = secrets.token_urlsafe(12)
 
-	# Update user's password
-	user.password = hash_password(temp_password)
-	db.commit()
+    # Update user's password
+    user.password = hash_password(temp_password)
+    db.commit()
 
-	# In a real-world scenario, you would send this temporary password via email
-	# Here, we're just returning it for demonstration
-	return {
-		"message": "Temporary password generated",
-		"temp_password": temp_password
-	}
+	# Need to get a correct SMPT for the job
+	# Will fix email config later
+    # Send temporary password via email
+    try:
+        # Elastic Email configuration
+        sender_email = ""  # Use your Elastic Email address
+        api_key = ""  # Your Elastic Email API key
+        smtp_server = "smtp.elasticemail.com"
+        smtp_port = 2525  # Use 587 for TLS
+        recipient_email = email
 
+        # Email content
+        subject = "Password Reset Request"
+        message = f"Hello {user.username},\n\nYour temporary password is: {temp_password}\nPlease use this password to log in and reset your password immediately."
+
+        # Create the email
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(message, "plain"))
+
+        # Connect to the SMTP server and send the email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # Upgrade the connection to secure TLS
+            server.login(sender_email, api_key)  # Log in with your Elastic Email API key
+            server.sendmail(sender_email, recipient_email, msg.as_string())  # Send the email
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send email: {str(e)}"
+        )
+
+    return {
+        "message": "Temporary password generated and sent to your email"
+    }
 
 @router.delete("/delete-account")
 def delete_account(
