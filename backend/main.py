@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from routes.auth import router as auth_router
-from routes.review import router as review_router  # Note the change
+from routes.reviews import router as review_router  # Note the change
 from database import create_tables
 
 # Create database tables

@@ -1,21 +1,17 @@
-from sqlalchemy import Column, Integer, String, DateTime, Enum
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Float, DateTime
+#from sqlalchemy.orm import declarative_base
+from datetime import datetime
 from database import Base
-import enum
 
-class InputSourceType(enum.Enum):
-    CSV = "csv"
-    JSON = "json"
-    API = "api"
+#Base = declarative_base()
 
-class InputSource(Base):
-    __tablename__ = "input_sources"
+class Review(Base):
+    __tablename__ = "reviews"
 
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(Enum(InputSourceType), nullable=False)
-    path = Column(String, nullable=False)
-    api_key = Column(String, nullable=True)  # Only used for API sources
-    description = Column(String, nullable=True)
-    user_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
+    review_text = Column(String, nullable=False)
+    source = Column(String, nullable=True)
+    sentiment_category = Column(String, nullable=True)
+    polarity = Column(Float, nullable=True)
+    subjectivity = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -75,7 +75,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
 	return {
 		"username": current_user.username,
 		"email": current_user.email,
-		"created_at": current_user.created_at
+		#"created_at": current_user.created_at
 	}
 
 
@@ -86,7 +86,7 @@ def change_password(
 	current_user: User = Depends(get_current_user),
 	db: Session = Depends(get_db)
 ):
-	if not verify_password(current_password, current_user.password):
+	if not verify_password(current_password, current_user.hashed_password):
 		raise HTTPException(
 			status_code = status.HTTP_400_BAD_REQUEST,
 			detail = "Incorrect current password"
@@ -98,7 +98,7 @@ def change_password(
 			detail = "New password must be at least 8 characters long"
 		)
 
-	current_user.password = hash_password(new_password)
+	current_user.hashed_password = hash_password(new_password)
 	db.commit()
 
 	return {"message": "Password successfully changed"}
