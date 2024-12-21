@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 
 class ReviewBase(BaseModel):
@@ -17,6 +17,13 @@ class ReviewResponse(ReviewBase):
     polarity: Optional[float] = None
     subjectivity: Optional[float] = None
     created_at: datetime = datetime.utcnow()
+
+class SentimentCountResponse(BaseModel):
+    very_positive: int
+    positive: int
+    neutral: int
+    negative: int
+    very_negative: int
 
     class Config:
         orm_mode = True

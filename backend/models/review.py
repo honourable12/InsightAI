@@ -14,4 +14,5 @@ class Review(Base):
     sentiment_category = Column(String, nullable=True)
     polarity = Column(Float, nullable=True)
     subjectivity = Column(Float, nullable=True)
+    batch_id = Column(String, nullable = False)
     created_at = Column(DateTime, default=datetime.utcnow)

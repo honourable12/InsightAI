@@ -1,0 +1,68 @@
+:root {
+  --background: #1a1a1a;
+  --card-bg: #2d2d2d;
+  --muted-bg: #363636;
+  --text-primary: #ffffff;
+  --text-muted: #a1a1a1;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+.loading-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--background);
+}
+
+.loading-text {
+  color: var(--text-muted);
+}
+
+.profile-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--background);
+  padding: 1rem;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 28rem;
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  padding: 2rem;
+}
+
+.profile-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+}
+
+.profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-field {
+  background-color: var(--muted-bg);
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.field-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.field-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
